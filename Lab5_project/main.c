@@ -89,6 +89,8 @@ int main(void){
 		}else{
 			turn_off_LED1();	//turn off LED1 if SW2 is pressed
 			turn_off_LED2();	//turn off LED2 if SW2 is pressed
+			
+			
 		}
 	}
 }
