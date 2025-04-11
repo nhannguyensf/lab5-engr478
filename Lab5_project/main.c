@@ -35,8 +35,11 @@ void configure_Push_Button_pin(){
 	GPIOC->MODER &= ~(3UL<<(2*PC3));  	// Input (00)
 	
 	// 3. Configure GPIO Push-Pull to 'No Pull-up or Pull-down': No pull-up, pull-down (00), Pull-up (01), Pull-down (10), Reserved (11)
-	GPIOC->PUPDR  &= ~(3<<(2*PC2));  // No pull-up, no pull-down
-	GPIOC->PUPDR  &= ~(3<<(2*PC3));  // No pull-up, no pull-down
+	GPIOC->PUPDR  &= ~(3<<(2*PC2));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (2 << (2 * PC2));   // Pull-down (10)
+
+	GPIOC->PUPDR  &= ~(3<<(2*PC3));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (1 << (2 * PC3));   // Pull-up (01)
 }
 
 // Modular function to turn on the LD2 LED.
