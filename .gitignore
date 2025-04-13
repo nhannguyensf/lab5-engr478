@@ -1,6 +1,7 @@
 # Ignore all files by default
 Lab5_project/*
 Switch_LED_delay_Interrupt/*
+Switch_LED_Counter/*
 .vscode
 
 # Allow only C and header files
