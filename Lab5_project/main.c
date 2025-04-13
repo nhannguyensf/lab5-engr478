@@ -7,6 +7,7 @@
 #define	PC2		2	//SW1
 #define PC3		3	//SW2
 
+volatile uint8_t toggle_flag = 0;
 
 void configure_LED_pin(){
   // 1. Enable the clock to GPIO Port B	
@@ -35,8 +36,11 @@ void configure_Push_Button_pin(){
 	GPIOC->MODER &= ~(3UL<<(2*PC3));  	// Input (00)
 	
 	// 3. Configure GPIO Push-Pull to 'No Pull-up or Pull-down': No pull-up, pull-down (00), Pull-up (01), Pull-down (10), Reserved (11)
-	GPIOC->PUPDR  &= ~(3<<(2*PC2));  // No pull-up, no pull-down
-	GPIOC->PUPDR  &= ~(3<<(2*PC3));  // No pull-up, no pull-down
+	GPIOC->PUPDR  &= ~(3<<(2*PC2));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (2 << (2 * PC2));   // Pull-down (10)
+
+	GPIOC->PUPDR  &= ~(3<<(2*PC3));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (1 << (2 * PC3));   // Pull-up (01)
 }
 
 // Modular function to turn on the LD2 LED.
@@ -63,32 +67,68 @@ void toggle_LED2(){
 	GPIOB->ODR ^= (1 << PB5);
 }
 
-int main(void){
-	int i;
-	//1. Invoke configure_LED_pin() to initialize PA5 as an output pin, interfacing with the LD2 LED.
-	configure_LED_pin();
-	//2. Invoke configure_Push_Button_pin() to initialize PC13 as an input pin, interfacing with the USER push button.
-	configure_Push_Button_pin();
-	//3. Turn on the LD2 LED
-	turn_on_LED1();
-	turn_on_LED2();
-	// Infinite loop to toggle the LED, making it blink at a specified frequency.
-	while(1){
-		
-		if ((GPIOC->IDR & (1<<PC3)) == 1<<PC3) //check if SW2 is not pressed
-		{
-			if ((GPIOC->IDR & (1<<PC2)) == 1<<PC2) //check if SW1 is pressed
-			{	
-				toggle_LED1();	//toggle LED1 if SW1 is pressed
-				turn_off_LED2();	//turn off LED2 if SW1 is pressed
-			}else{
-				toggle_LED2();	//turn off the LED if SW1 is released
-				turn_off_LED1();	//turn off the LED if SW1 is released
-			}
-			for(i=0; i<100000; i++); //delay for a while
-		}else{
-			turn_off_LED1();	//turn off LED1 if SW2 is pressed
-			turn_off_LED2();	//turn off LED2 if SW2 is pressed
-		}
-	}
+// Function to configure SysTick for 1s interval
+void SysTick_Init(uint32_t Reload)
+{
+    // 1. Disable SysTick Counter before configuration
+    SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
+
+    // 2. Set reload value (counts per interrupt)
+    SysTick->LOAD = Reload - 1;
+
+    // 3. Clear current value
+    SysTick->VAL = 0;
+
+    // 4. Enable SysTick exception request
+    SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
+
+    // 5. Select SysTick clock source (use processor clock)
+    SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk;
+
+    // 6. Enable SysTick Timer
+    SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+}
+
+// Fires every 0.5 second
+void SysTick_Handler(void) {
+    toggle_flag = 1;
+}
+
+int main(void) {
+    // Configure PB4 and PB5 as outputs for LED1 and LED2
+    configure_LED_pin();
+
+    // Configure PC2 and PC3 as inputs for SW1 and SW2 (with pull-down and pull-up)
+    configure_Push_Button_pin();
+
+    // Initialize SysTick timer to trigger interrupt every 0.5 seconds (assuming 4 MHz clock)
+    SysTick_Init(2000000); // 4,000,000 cycles/sec => 0.5s = 2,000,000 ticks
+    // SysTick_Init(500000); // 4,000,000 cycles/sec => 0.5s = 2,000,000 ticks
+
+    // Main loop
+    while (1) {
+        // Check if SysTick interrupt has set the toggle_flag
+        if (toggle_flag) {
+            toggle_flag = 0; // Clear the flag after handling
+
+            // Check if SW2 is pressed (active-low: reads 0 when pressed)
+            if ((GPIOC->IDR & (1 << PC3)) == 0) {
+                // If SW2 is pressed, turn both LEDs OFF immediately
+                turn_off_LED1();
+                turn_off_LED2();
+            }
+            // Else if SW1 is pressed (active-high: reads 1 when pressed)
+            else if ((GPIOC->IDR & (1 << PC2)) != 0) {
+                // Toggle LED1 every 0.5s and keep LED2 OFF
+                toggle_LED1();
+                turn_off_LED2();
+            }
+            // Else (SW1 is not pressed, SW2 is not pressed)
+            else {
+                // Toggle LED2 every 0.5s and keep LED1 OFF
+                toggle_LED2();
+                turn_off_LED1();
+            }
+        }
+    }
 }

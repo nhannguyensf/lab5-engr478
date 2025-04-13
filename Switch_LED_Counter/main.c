@@ -10,6 +10,8 @@
 volatile uint8_t debounce_SW1 = 0;
 volatile uint8_t debounce_SW2 = 0;
 
+volatile uint8_t counter = 0;  // 2-bit counter: values 0–3
+
 void configure_LED_pin(){
   // 1. Enable the clock to GPIO Port B	
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;   
@@ -68,6 +70,18 @@ void toggle_LED2(){
 	GPIOB->ODR ^= (1 << PB5);
 }
 
+void update_LEDs_from_counter() {
+    if (counter & 0x01)
+        turn_on_LED1();
+    else
+        turn_off_LED1();
+
+    if (counter & 0x02)
+        turn_on_LED2();
+    else
+        turn_off_LED2();
+}
+
 void TIM6_Init(uint16_t ms_delay) {
     RCC->APB1ENR1 |= RCC_APB1ENR1_TIM6EN;  // Enable TIM6 clock
 
@@ -80,23 +94,25 @@ void TIM6_Init(uint16_t ms_delay) {
 }
 
 void TIM6_DAC_IRQHandler(void) {
-    TIM6->SR &= ~TIM_SR_UIF;     // Clear update interrupt flag
+    TIM6->SR &= ~TIM_SR_UIF;     // Clear interrupt flag
     TIM6->CR1 &= ~TIM_CR1_CEN;   // Stop timer
 
     if (debounce_SW1) {
         debounce_SW1 = 0;
-        if ((GPIOC->IDR & (1 << PC2)) != 0) {  // still HIGH = pressed
-            toggle_LED1();
+        if ((GPIOC->IDR & (1 << PC2)) != 0) {  // SW1 pressed = HIGH (pull-down)
+            counter = (counter + 1) & 0x03;    // increment & wrap (0–3)
+            update_LEDs_from_counter();
         }
-        EXTI->IMR1 |= (1 << PC2);  // Re-enable EXTI2
+        EXTI->IMR1 |= (1 << PC2);
     }
 
     if (debounce_SW2) {
         debounce_SW2 = 0;
-        if ((GPIOC->IDR & (1 << PC3)) == 0) {  // still LOW = pressed
-            toggle_LED2();
+        if ((GPIOC->IDR & (1 << PC3)) == 0) {  // SW2 pressed = LOW (pull-up)
+            counter = (counter - 1) & 0x03;    // decrement & wrap (0–3)
+            update_LEDs_from_counter();
         }
-        EXTI->IMR1 |= (1 << PC3);  // Re-enable EXTI3
+        EXTI->IMR1 |= (1 << PC3);
     }
 }
 
@@ -150,9 +166,8 @@ int main(void){
     configure_Push_Button_pin();
     configure_EXTI();
 
-    // === Startup: Turn both LEDs ON ===
-    turn_on_LED1();
-    turn_on_LED2();
+    counter = 0;
+    update_LEDs_from_counter();
 
     while (1) {
         __WFI();  // Wait For Interrupt — saves power
