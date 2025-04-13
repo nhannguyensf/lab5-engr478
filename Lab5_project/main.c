@@ -67,13 +67,26 @@ void toggle_LED2(){
 	GPIOB->ODR ^= (1 << PB5);
 }
 
-void SysTick_Init(uint32_t reload_val) {
-    SysTick->CTRL = 0;                  // Disable SysTick
-    SysTick->LOAD = reload_val - 1;     // Set reload value
-    SysTick->VAL = 0;                   // Reset current value
-    SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk | 
-                     SysTick_CTRL_TICKINT_Msk   | 
-                     SysTick_CTRL_ENABLE_Msk;   // Enable SysTick with interrupt
+// Function to configure SysTick for 1s interval
+void SysTick_Init(uint32_t Reload)
+{
+    // 1. Disable SysTick Counter before configuration
+    SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
+
+    // 2. Set reload value (counts per interrupt)
+    SysTick->LOAD = Reload - 1;
+
+    // 3. Clear current value
+    SysTick->VAL = 0;
+
+    // 4. Enable SysTick exception request
+    SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
+
+    // 5. Select SysTick clock source (use processor clock)
+    SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk;
+
+    // 6. Enable SysTick Timer
+    SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
 }
 
 // Fires every 0.5 second
@@ -89,7 +102,8 @@ int main(void) {
     configure_Push_Button_pin();
 
     // Initialize SysTick timer to trigger interrupt every 0.5 seconds (assuming 4 MHz clock)
-    SysTick_Init(2000000); // 4,000,000 cycles/sec × 0.5s = 2,000,000 ticks
+    SysTick_Init(2000000); // 4,000,000 cycles/sec => 0.5s = 2,000,000 ticks
+    // SysTick_Init(500000); // 4,000,000 cycles/sec => 0.5s = 2,000,000 ticks
 
     // Main loop
     while (1) {
