@@ -2,24 +2,30 @@
 
 // PA5  <--> Green LED
 
-#define LED_PIN    5
-#define	Button_PIN	13
-#define EXTI_PIN Button_PIN
-volatile unsigned long count = 0;
+#define PB4     4	//LED1
+#define PB5		5	//LED2
+#define	PC2		2	//SW1
+#define PC3		3	//SW2
+
+volatile uint8_t debounce_SW1 = 0;
+volatile uint8_t debounce_SW2 = 0;
 
 void configure_LED_pin(){
-  // 1. Enable the clock to GPIO Port A	
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;   
+  // 1. Enable the clock to GPIO Port B	
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;   
 		
 	// 2. Configure GPIO Mode to 'Output': Input(00), Output(01), AlterFunc(10), Analog(11)
-	GPIOA->MODER &= ~(3UL<<(2*LED_PIN));  
-	GPIOA->MODER |=   1UL<<(2*LED_PIN);      // Output(01)
-
-	// 3. Configure GPIO Output Type to 'Push-Pull': Output push-pull (0), Output open drain (1) 
-	GPIOA->OTYPER &= ~(1<<LED_PIN);      // Push-pull
+	GPIOB->MODER &= ~(3UL<<(2*PB4));  
+	GPIOB->MODER |=   1UL<<(2*PB4);      // Output(01)
+	GPIOB->MODER &= ~(3UL<<(2*PB5));  
+	GPIOB->MODER |=   1UL<<(2*PB5);      // Output(01)
 	
+	// 3. Configure GPIO Output Type to 'Push-Pull': Output push-pull (0), Output open drain (1) 
+	GPIOB->OTYPER &= ~(1<<PB4);      // Push-pull
+	GPIOB->OTYPER &= ~(1<<PB5);      // Push-pull
 	// 4. Configure GPIO Push-Pull to 'No Pull-up or Pull-down': No pull-up, pull-down (00), Pull-up (01), Pull-down (10), Reserved (11)
-	GPIOA->PUPDR  &= ~(3<<(2*LED_PIN));  // No pull-up, no pull-down
+	GPIOB->PUPDR  &= ~(3<<(2*PB4));  // No pull-up, no pull-down
+	GPIOB->PUPDR  &= ~(3<<(2*PB5));  // No pull-up, no pull-down
 }
 
 void configure_Push_Button_pin(){
@@ -27,72 +33,129 @@ void configure_Push_Button_pin(){
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;   
 		
 	// 2. Configure GPIO Mode to 'Input': Input(00), Output(01), AlterFunc(10), Analog(11)
-	GPIOC->MODER &= ~(3UL<<(2*Button_PIN));  	// Input (00)
+	GPIOC->MODER &= ~(3UL<<(2*PC2));  	// Input (00)
+	GPIOC->MODER &= ~(3UL<<(2*PC3));  	// Input (00)
 	
 	// 3. Configure GPIO Push-Pull to 'No Pull-up or Pull-down': No pull-up, pull-down (00), Pull-up (01), Pull-down (10), Reserved (11)
-	GPIOC->PUPDR  &= ~(3<<(2*Button_PIN));  // No pull-up, no pull-down
+	GPIOC->PUPDR  &= ~(3<<(2*PC2));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (2 << (2 * PC2));   // Pull-down (10)
+
+	GPIOC->PUPDR  &= ~(3<<(2*PC3));  // No pull-up, no pull-down, clear bits
+	GPIOC->PUPDR |=  (1 << (2 * PC3));   // Pull-up (01)
 }
-
-void configure_EXTI(void){
-
-	//1. Enable the EXTI15_10 interrupt (including EXTI13) in NVIC using a function from CMSIS's core_cm4.h.
-	NVIC_EnableIRQ(EXTI15_10_IRQn); 
-	
-	//2. Configure the SYSCFG module to link EXTI line 13 to GPIO PC13
-	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;							// Enable the clock to SYSCFG
-	SYSCFG->EXTICR[3] &= ~SYSCFG_EXTICR4_EXTI13;     	// Clear the EXTI13 bits in SYSCFG's EXTICR4 register.
-	SYSCFG->EXTICR[3] |=  SYSCFG_EXTICR4_EXTI13_PC; 	// Set PC13 (0010) as the EXTI13 source in SYSCFG_EXTICR4.
-
-	// 3. Enable (unmask) the EXTI13 interrupt by setting its corresponding bit in the EXTI's IMR.
-	EXTI->IMR1 |= (1<<EXTI_PIN);     //Interrupt Mask Register (IMR): 0 = marked, 1 = not masked (i.e., enabled)
-	
-	//4. Enable interrupt trigger for both rising (button release) and falling (button press) edges.
-	EXTI->RTSR1 |= (1<<EXTI_PIN);  //Rising trigger selection register (RTSR):0 = disabled, 1 = enabled
-	EXTI->FTSR1 |= (1<<EXTI_PIN);  //Falling trigger selection register (FTSR): 0 = disabled, 1 = enabled
-}
-
 
 // Modular function to turn on the LD2 LED.
-void turn_on_LED(){
-	GPIOA->ODR |= 1 << LED_PIN;
+void turn_on_LED1(){
+	GPIOB->ODR |= 1 << PB4;
+}
+void turn_on_LED2(){
+	GPIOB->ODR &= ~(1 << PB5);
 }
 
 // Modular function to turn off the LD2 LED.
-void turn_off_LED(){
-	GPIOA->ODR &= ~(1 << LED_PIN);
+void turn_off_LED1(){
+	GPIOB->ODR &= ~(1 << PB4);
+}
+void turn_off_LED2(){
+	GPIOB->ODR |= 1 << PB5;
 }
 
 // Modular function to toggle the LD2 LED.
-void toggle_LED(){
-	GPIOA->ODR ^= (1 << LED_PIN);
+void toggle_LED1(){
+	GPIOB->ODR ^= (1 << PB4);
+}
+void toggle_LED2(){
+	GPIOB->ODR ^= (1 << PB5);
 }
 
-// ISR (interrupt handler) for EXTI15_10. Interrupt handlers are initially defined in startup_stml476xx.s.
-void EXTI15_10_IRQHandler(void) {  
-	// PR (Pending Register): Check if the interrupt is triggered by EXTI13, as EXTI 10-15 share this interrupt vector.	
-	if ((EXTI->PR1 & EXTI_PR1_PIF13) == EXTI_PR1_PIF13) {
-		// cleared by writing a 1 to this bit
-		EXTI->PR1 |= EXTI_PR1_PIF13;
-		if ((GPIOC->IDR & (1<<Button_PIN)) == 0) //check if push button is pressed
-		{	
-			turn_on_LED();	//turn on the LED if push button is pressed
-		}else{
-			turn_off_LED();	//turn off the LED if push button is released
-		}
-	}
+void TIM6_Init(uint16_t ms_delay) {
+    RCC->APB1ENR1 |= RCC_APB1ENR1_TIM6EN;  // Enable TIM6 clock
+
+    TIM6->CR1 = 0;               // Clear control register
+    TIM6->PSC = 3999;            // Prescaler: (4 MHz / (3999 + 1)) = 1 kHz → 1ms tick
+    TIM6->ARR = ms_delay;        // Auto-reload value: e.g., 20 ms
+
+    TIM6->DIER |= TIM_DIER_UIE;  // Enable update interrupt
+    NVIC_EnableIRQ(TIM6_DAC_IRQn); // Enable TIM6 IRQ
+}
+
+void TIM6_DAC_IRQHandler(void) {
+    TIM6->SR &= ~TIM_SR_UIF;     // Clear update interrupt flag
+    TIM6->CR1 &= ~TIM_CR1_CEN;   // Stop timer
+
+    if (debounce_SW1) {
+        debounce_SW1 = 0;
+        if ((GPIOC->IDR & (1 << PC2)) != 0) {  // still HIGH = pressed
+            toggle_LED1();
+        }
+        EXTI->IMR1 |= (1 << PC2);  // Re-enable EXTI2
+    }
+
+    if (debounce_SW2) {
+        debounce_SW2 = 0;
+        if ((GPIOC->IDR & (1 << PC3)) == 0) {  // still LOW = pressed
+            toggle_LED2();
+        }
+        EXTI->IMR1 |= (1 << PC3);  // Re-enable EXTI3
+    }
+}
+
+// === EXTI CONFIG ===
+void configure_EXTI() {
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+    // Enable IRQ for PC2 and PC3
+    NVIC_EnableIRQ(EXTI2_IRQn);   // SW1
+    NVIC_EnableIRQ(EXTI3_IRQn);   // SW2
+
+    // Map EXTI2 to PC2, EXTI3 to PC3
+    SYSCFG->EXTICR[0] &= ~(SYSCFG_EXTICR1_EXTI2 | SYSCFG_EXTICR1_EXTI3);
+    SYSCFG->EXTICR[0] |=  (SYSCFG_EXTICR1_EXTI2_PC | SYSCFG_EXTICR1_EXTI3_PC);
+
+    // Unmask EXTI lines
+    EXTI->IMR1 |= (1 << PC2) | (1 << PC3);
+
+    // SW1 (PC2) — rising edge
+    EXTI->RTSR1 |= (1 << PC2);
+    EXTI->FTSR1 &= ~(1 << PC2);
+
+    // SW2 (PC3) — falling edge
+    EXTI->FTSR1 |= (1 << PC3);
+    EXTI->RTSR1 &= ~(1 << PC3);
+}
+
+// === INTERRUPT SERVICE ROUTINES ===
+void EXTI2_IRQHandler(void) {  // SW1 - PC2 (pull-down)
+    if (EXTI->PR1 & (1 << PC2)) {
+        EXTI->PR1 |= (1 << PC2);           // Clear flag
+        EXTI->IMR1 &= ~(1 << PC2);         // Disable EXTI for PC2
+        debounce_SW1 = 1;                  // Set debounce flag
+        TIM6_Init(20);                     // 20 ms debounce
+        TIM6->CR1 |= TIM_CR1_CEN;          // Start timer
+    }
+}
+
+void EXTI3_IRQHandler(void) {  // SW2 - PC3 (pull-up)
+    if (EXTI->PR1 & (1 << PC3)) {
+        EXTI->PR1 |= (1 << PC3);           // Clear flag
+        EXTI->IMR1 &= ~(1 << PC3);         // Disable EXTI for PC3
+        debounce_SW2 = 1;                  // Set debounce flag
+        TIM6_Init(20);                     // 20 ms debounce
+        TIM6->CR1 |= TIM_CR1_CEN;          // Start timer
+    }
 }
 
 int main(void){
-	int i;
-	//1. Invoke configure_LED_pin() to initialize PA5 as an output pin, interfacing with the LD2 LED.
 	configure_LED_pin();
-	//2. Invoke configure_Push_Button_pin() to initialize PC13 as an input pin, interfacing with the USER push button.
-	configure_Push_Button_pin();
-	//3. Invoke configure_EXTI() to set up edge-triggered interrput on PC13
-	configure_EXTI();
-	
-	while(1){
-		for(i=0; i<1000000; i++); // Insert software tasks, e.g., a delay, in the main routine.
-	}
+    configure_Push_Button_pin();
+    configure_EXTI();
+
+    // === Startup: Turn both LEDs ON ===
+    turn_on_LED1();
+    turn_on_LED2();
+
+    while (1) {
+        __WFI();  // Wait For Interrupt — saves power
+    }
 		
 }
